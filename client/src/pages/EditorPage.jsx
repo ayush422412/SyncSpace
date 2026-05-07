@@ -1,0 +1,381 @@
+import {
+    useEditor,
+    EditorContent,
+} from "@tiptap/react";
+
+import StarterKit from "@tiptap/starter-kit";
+
+import Underline from "@tiptap/extension-underline";
+
+import TextAlign from "@tiptap/extension-text-align";
+
+import Collaboration from "@tiptap/extension-collaboration";
+
+import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
+
+import * as Y from "yjs";
+
+import { WebsocketProvider } from "y-websocket";
+
+import {
+    useEffect,
+    useMemo,
+    useState,
+} from "react";
+
+import { useParams } from "react-router-dom";
+
+import { useSelector } from "react-redux";
+
+import api from "../services/api";
+
+import EditorToolbar from "../components/EditorToolbar";
+
+function EditorPage() {
+    const { id } = useParams();
+
+    const { user } = useSelector(
+        (state) => state.auth
+    );
+
+    const [documentTitle, setDocumentTitle] =
+        useState("");
+
+
+
+    const [loading, setLoading] =
+        useState(true);
+
+    const [role, setRole] =
+        useState("viewer");
+
+    const [showShareModal, setShowShareModal] =
+        useState(false);
+
+    const [shareEmail, setShareEmail] =
+        useState("");
+
+    const [shareRole, setShareRole] =
+        useState("editor");
+
+    // YJS DOCUMENT
+    const ydoc = useMemo(
+        () => new Y.Doc(),
+        []
+    );
+
+    // WEBSOCKET PROVIDER
+    const provider = useMemo(() => {
+        return new WebsocketProvider(
+            "ws://localhost:1234",
+            `document-${id}`,
+            ydoc
+        );
+    }, [id, ydoc]);
+
+    // CONNECTION LOGS
+    useEffect(() => {
+        provider.on("status", (event) => {
+            console.log(
+                "YJS STATUS:",
+                event.status
+            );
+        });
+
+        
+
+        provider.on("sync", (isSynced) => {
+            console.log(
+                "YJS SYNCED:",
+                isSynced
+            );
+        });
+    }, [provider]);
+
+    // EDITOR
+    const editor = useEditor({
+        immediatelyRender: false,
+
+        editable: true,
+
+        extensions: [
+            StarterKit.configure({
+                history: false,
+            }),
+
+            Underline,
+
+            TextAlign.configure({
+                types: [
+                    "heading",
+                    "paragraph",
+                ],
+            }),
+
+            Collaboration.configure({
+                document: ydoc,
+
+                field: "content",
+            }),
+        ],
+
+        editorProps: {
+            attributes: {
+                class:
+                    "min-h-[500px] p-5 outline-none",
+            },
+        },
+    });
+
+    // LOAD DOCUMENT
+    const getDocument = async () => {
+        try {
+            const res = await api.get(
+                `/documents/${id}`
+            );
+
+            console.log(res.data);
+
+            // SUPPORT BOTH RESPONSE TYPES
+            const doc =
+                res.data.document || res.data;
+
+            setDocumentTitle(doc.title);
+
+            setRole(
+                res.data.role || "owner"
+            );
+
+            setLoading(false);
+        } catch (error) {
+            console.log(error);
+        }
+    };
+    useEffect(() => {
+        if (editor) {
+            getDocument();
+        }
+    }, [editor]);
+
+    useEffect(() => {
+  if (!editor) return;
+
+  editor.setEditable(
+    role === "editor" ||
+      role === "owner"
+  );
+}, [role, editor]);
+
+    // AUTOSAVE
+    useEffect(() => {
+        if (!editor) return;
+
+        const interval = setInterval(
+            async () => {
+                try {
+                    await api.put(
+                        `/documents/${id}`,
+                        {
+                            title: documentTitle,
+
+                            content:
+                                editor.getHTML(),
+                        }
+                    );
+
+                    console.log(
+                        "Autosaved"
+                    );
+                } catch (error) {
+                    console.log(error);
+                }
+            },
+            3000
+        );
+
+        const shareDocument = async () => {
+            try {
+                await api.post(
+                    `/documents/${id}/share`,
+                    {
+                        email: shareEmail,
+
+                        role: shareRole,
+                    }
+                );
+
+                alert("Document shared");
+
+                setShareEmail("");
+
+                setShowShareModal(false);
+            } catch (error) {
+                console.log(error);
+
+                alert(
+                    error.response?.data?.message ||
+                    "Failed to share"
+                );
+            }
+        };
+
+        return () =>
+            clearInterval(interval);
+    }, [editor, documentTitle]);
+
+    // CLEANUP
+    useEffect(() => {
+        return () => {
+            provider.destroy();
+
+            ydoc.destroy();
+        };
+    }, [provider, ydoc]);
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-black text-white flex items-center justify-center">
+                Loading...
+            </div>
+        );
+    }
+    const shareDocument = async () => {
+        try {
+            await api.post(
+                `/documents/${id}/share`,
+                {
+                    email: shareEmail,
+
+                    role: shareRole,
+                }
+            );
+
+            alert("Document shared");
+
+            setShareEmail("");
+
+            setShowShareModal(false);
+        } catch (error) {
+            console.log(error);
+
+            alert(
+                error.response?.data?.message ||
+                "Failed to share"
+            );
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-black text-white">
+
+            {/* TOPBAR */}
+            <div className="border-b border-zinc-800 px-10 py-5">
+                <div className="flex justify-end mb-4">
+
+                    <button
+                        onClick={() =>
+                            setShowShareModal(true)
+                        }
+                        className="bg-white text-black px-4 py-2 rounded-lg font-medium"
+                    >
+                        Share
+                    </button>
+
+                </div>
+
+                <input
+                    type="text"
+                    value={documentTitle}
+                    onChange={(e) =>
+                        setDocumentTitle(
+                            e.target.value
+                        )
+                    }
+                    className="bg-transparent text-3xl font-bold outline-none"
+                />
+
+            </div>
+
+            {showShareModal && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+
+                    <div className="bg-zinc-900 p-6 rounded-xl w-[400px]">
+
+                        <h2 className="text-2xl font-bold mb-5">
+                            Share Document
+                        </h2>
+
+                        <input
+                            type="email"
+                            placeholder="Enter user email"
+                            value={shareEmail}
+                            onChange={(e) =>
+                                setShareEmail(
+                                    e.target.value
+                                )
+                            }
+                            className="w-full p-3 rounded-lg bg-zinc-800 outline-none mb-4"
+                        />
+
+                        <select
+                            value={shareRole}
+                            onChange={(e) =>
+                                setShareRole(
+                                    e.target.value
+                                )
+                            }
+                            className="w-full p-3 rounded-lg bg-zinc-800 outline-none mb-5"
+                        >
+                            <option value="editor">
+                                Editor
+                            </option>
+
+                            <option value="viewer">
+                                Viewer
+                            </option>
+                        </select>
+
+                        <div className="flex justify-end gap-3">
+
+                            <button
+                                onClick={() =>
+                                    setShowShareModal(false)
+                                }
+                                className="px-4 py-2 bg-zinc-700 rounded-lg"
+                            >
+                                Cancel
+                            </button>
+
+                            <button
+                                onClick={shareDocument}
+                                className="px-4 py-2 bg-white text-black rounded-lg font-semibold"
+                            >
+                                Share
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+            )}
+
+            {/* EDITOR */}
+            <div className="max-w-5xl mx-auto py-10">
+
+                <div className="bg-zinc-900 rounded-xl overflow-hidden">
+
+                    <EditorToolbar editor={editor} />
+
+                    <EditorContent
+                        editor={editor}
+                    />
+
+                </div>
+
+            </div>
+        </div>
+    );
+}
+
+export default EditorPage;
