@@ -5,6 +5,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import EditorPage from "./pages/EditorPage";
 
+
 import ProtectedRoute from "./routes/ProtectedRoute";
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
         path="/"
         element={<Navigate to="/login" />}
       />
+      
 
       <Route
         path="/login"

@@ -17,6 +17,8 @@ import * as Y from "yjs";
 
 import { WebsocketProvider } from "y-websocket";
 
+import Whiteboard from "../components/Whiteboard";
+
 import {
     useEffect,
     useMemo,
@@ -45,6 +47,12 @@ function EditorPage() {
 
     const [loading, setLoading] =
         useState(true);
+
+    const [activeTab, setActiveTab] =
+        useState("document");
+
+    const [shareLink, setShareLink] =
+        useState("");
 
     const [role, setRole] =
         useState("viewer");
@@ -82,7 +90,7 @@ function EditorPage() {
             );
         });
 
-        
+
 
         provider.on("sync", (isSynced) => {
             console.log(
@@ -158,13 +166,13 @@ function EditorPage() {
     }, [editor]);
 
     useEffect(() => {
-  if (!editor) return;
+        if (!editor) return;
 
-  editor.setEditable(
-    role === "editor" ||
-      role === "owner"
-  );
-}, [role, editor]);
+        editor.setEditable(
+            role === "editor" ||
+            role === "owner"
+        );
+    }, [role, editor]);
 
     // AUTOSAVE
     useEffect(() => {
@@ -192,24 +200,28 @@ function EditorPage() {
             },
             3000
         );
-
         const shareDocument = async () => {
             try {
+
                 await api.post(
                     `/documents/${id}/share`,
                     {
                         email: shareEmail,
-
                         role: shareRole,
                     }
                 );
+
+                const link =
+                    `${window.location.origin}/document/${id}`;
+
+                setShareLink(link);
 
                 alert("Document shared");
 
                 setShareEmail("");
 
-                setShowShareModal(false);
             } catch (error) {
+
                 console.log(error);
 
                 alert(
@@ -239,23 +251,29 @@ function EditorPage() {
             </div>
         );
     }
+// SHARE FUNCTION
     const shareDocument = async () => {
         try {
+
             await api.post(
                 `/documents/${id}/share`,
                 {
                     email: shareEmail,
-
                     role: shareRole,
                 }
             );
+
+            const link =
+                `${window.location.origin}/document/${id}`;
+
+            setShareLink(link);
 
             alert("Document shared");
 
             setShareEmail("");
 
-            setShowShareModal(false);
         } catch (error) {
+
             console.log(error);
 
             alert(
@@ -296,6 +314,8 @@ function EditorPage() {
 
             </div>
 
+
+
             {showShareModal && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
 
@@ -324,7 +344,7 @@ function EditorPage() {
                                     e.target.value
                                 )
                             }
-                            className="w-full p-3 rounded-lg bg-zinc-800 outline-none mb-5"
+                            className="w-full p-3 rounded-lg bg-zinc-800 outline-none mb-4"
                         >
                             <option value="editor">
                                 Editor
@@ -335,12 +355,49 @@ function EditorPage() {
                             </option>
                         </select>
 
+                        {/* SHAREABLE LINK */}
+                        {shareLink && (
+
+                            <div className="mb-5">
+
+                                <p className="text-sm text-zinc-400 mb-2">
+                                    Shareable Link
+                                </p>
+
+                                <div className="flex gap-2">
+
+                                    <input
+                                        type="text"
+                                        value={shareLink}
+                                        readOnly
+                                        className="flex-1 p-3 rounded-lg bg-zinc-800 outline-none"
+                                    />
+
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(
+                                                shareLink
+                                            );
+                                        }}
+                                        className="bg-white text-black px-4 rounded-lg"
+                                    >
+                                        Copy
+                                    </button>
+
+                                </div>
+
+                            </div>
+
+                        )}
+
                         <div className="flex justify-end gap-3">
 
                             <button
-                                onClick={() =>
-                                    setShowShareModal(false)
-                                }
+                                onClick={() => {
+                                    setShowShareModal(false);
+
+                                    setShareLink("");
+                                }}
                                 className="px-4 py-2 bg-zinc-700 rounded-lg"
                             >
                                 Cancel
@@ -360,8 +417,40 @@ function EditorPage() {
                 </div>
             )}
 
+            <div className="flex gap-4 mb-6">
+
+                <button
+                    onClick={() =>
+                        setActiveTab(
+                            "document"
+                        )
+                    }
+                    className={`px-4 py-2 rounded-lg ${activeTab === "document"
+                        ? "bg-white text-black"
+                        : "bg-zinc-800"
+                        }`}
+                >
+                    Document
+                </button>
+
+                <button
+                    onClick={() =>
+                        setActiveTab(
+                            "whiteboard"
+                        )
+                    }
+                    className={`px-4 py-2 rounded-lg ${activeTab === "whiteboard"
+                        ? "bg-white text-black"
+                        : "bg-zinc-800"
+                        }`}
+                >
+                    Whiteboard
+                </button>
+
+            </div>
+
             {/* EDITOR */}
-            <div className="max-w-5xl mx-auto py-10">
+            {activeTab === "document" ? (
 
                 <div className="bg-zinc-900 rounded-xl overflow-hidden">
 
@@ -369,11 +458,19 @@ function EditorPage() {
 
                     <EditorContent
                         editor={editor}
+                        className="min-h-[500px] p-5"
                     />
 
                 </div>
 
-            </div>
+            ) : (
+
+                <Whiteboard
+                    workspaceId={id}
+                    role={role}
+                />
+
+            )}
         </div>
     );
 }

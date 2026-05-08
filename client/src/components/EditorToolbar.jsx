@@ -3,6 +3,9 @@ function EditorToolbar({ editor }) {
 
   return (
     <div className="flex gap-2 flex-wrap border-b border-zinc-800 p-4 bg-zinc-900 rounded-t-xl">
+
+
+      
       
       {/* HEADING */}
       <button
