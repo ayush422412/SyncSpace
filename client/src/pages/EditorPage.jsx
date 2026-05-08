@@ -3,6 +3,7 @@ import {
     EditorContent,
 } from "@tiptap/react";
 
+
 import StarterKit from "@tiptap/starter-kit";
 
 import Underline from "@tiptap/extension-underline";
@@ -12,6 +13,10 @@ import TextAlign from "@tiptap/extension-text-align";
 import Collaboration from "@tiptap/extension-collaboration";
 
 import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
+import jsPDF from "jspdf";
+
+import html2canvas
+    from "html2canvas";
 
 import * as Y from "yjs";
 
@@ -43,8 +48,6 @@ function EditorPage() {
     const [documentTitle, setDocumentTitle] =
         useState("");
 
-
-
     const [loading, setLoading] =
         useState(true);
 
@@ -66,6 +69,9 @@ function EditorPage() {
     const [shareRole, setShareRole] =
         useState("editor");
 
+    const [onlineUsers, setOnlineUsers] =
+        useState([]);
+
     // YJS DOCUMENT
     const ydoc = useMemo(
         () => new Y.Doc(),
@@ -81,8 +87,10 @@ function EditorPage() {
         );
     }, [id, ydoc]);
 
+
     // CONNECTION LOGS
     useEffect(() => {
+
         provider.on("status", (event) => {
             console.log(
                 "YJS STATUS:",
@@ -90,15 +98,73 @@ function EditorPage() {
             );
         });
 
-
-
         provider.on("sync", (isSynced) => {
             console.log(
                 "YJS SYNCED:",
                 isSynced
             );
         });
-    }, [provider]);
+
+        // LIVE USERS
+        provider.awareness.setLocalStateField(
+            "user",
+            {
+                name:
+                    user?.name ||
+                    "Guest",
+            }
+        );
+
+        provider.awareness.on(
+            "change",
+            () => {
+
+                const users = [];
+
+                provider.awareness
+                    .getStates()
+                    .forEach((state) => {
+
+                        if (state.user) {
+                            users.push(
+                                state.user
+                            );
+                        }
+
+                    });
+
+                setOnlineUsers(users);
+            }
+        );
+
+        return () => {
+            provider.destroy();
+        };
+
+    }, [provider, user]);
+
+
+    // EXTENSIONS
+    const extensions = [
+
+        StarterKit.configure({
+            history: false,
+        }),
+
+        TextAlign.configure({
+            types: [
+                "heading",
+                "paragraph",
+            ],
+        }),
+
+        Collaboration.configure({
+            document: ydoc,
+            field: "content",
+        }),
+
+    ];
+
 
     // EDITOR
     const editor = useEditor({
@@ -106,26 +172,7 @@ function EditorPage() {
 
         editable: true,
 
-        extensions: [
-            StarterKit.configure({
-                history: false,
-            }),
-
-            Underline,
-
-            TextAlign.configure({
-                types: [
-                    "heading",
-                    "paragraph",
-                ],
-            }),
-
-            Collaboration.configure({
-                document: ydoc,
-
-                field: "content",
-            }),
-        ],
+        extensions,
 
         editorProps: {
             attributes: {
@@ -159,6 +206,7 @@ function EditorPage() {
             console.log(error);
         }
     };
+
     useEffect(() => {
         if (editor) {
             getDocument();
@@ -173,6 +221,35 @@ function EditorPage() {
             role === "owner"
         );
     }, [role, editor]);
+
+    // SHARE FUNCTION
+    const shareDocument = async () => {
+        try {
+            await api.post(
+                `/documents/${id}/share`,
+                {
+                    email: shareEmail,
+                    role: shareRole,
+                }
+            );
+
+            const link =
+                `${window.location.origin}/document/${id}`;
+
+            setShareLink(link);
+
+            alert("Document shared");
+
+            setShareEmail("");
+        } catch (error) {
+            console.log(error);
+
+            alert(
+                error.response?.data?.message ||
+                "Failed to share"
+            );
+        }
+    };
 
     // AUTOSAVE
     useEffect(() => {
@@ -200,40 +277,10 @@ function EditorPage() {
             },
             3000
         );
-        const shareDocument = async () => {
-            try {
-
-                await api.post(
-                    `/documents/${id}/share`,
-                    {
-                        email: shareEmail,
-                        role: shareRole,
-                    }
-                );
-
-                const link =
-                    `${window.location.origin}/document/${id}`;
-
-                setShareLink(link);
-
-                alert("Document shared");
-
-                setShareEmail("");
-
-            } catch (error) {
-
-                console.log(error);
-
-                alert(
-                    error.response?.data?.message ||
-                    "Failed to share"
-                );
-            }
-        };
 
         return () =>
             clearInterval(interval);
-    }, [editor, documentTitle]);
+    }, [editor, documentTitle, id]);
 
     // CLEANUP
     useEffect(() => {
@@ -251,44 +298,78 @@ function EditorPage() {
             </div>
         );
     }
-// SHARE FUNCTION
-    const shareDocument = async () => {
-        try {
 
-            await api.post(
-                `/documents/${id}/share`,
-                {
-                    email: shareEmail,
-                    role: shareRole,
-                }
+    const exportPDF =
+        async () => {
+
+            const editorElement =
+                document.querySelector(
+                    ".ProseMirror"
+                );
+
+            if (!editorElement)
+                return;
+
+            const canvas =
+                await html2canvas(
+                    editorElement
+                );
+
+            const imgData =
+                canvas.toDataURL(
+                    "image/png"
+                );
+
+            const pdf =
+                new jsPDF(
+                    "p",
+                    "mm",
+                    "a4"
+                );
+
+            const pdfWidth =
+                pdf.internal
+                    .pageSize
+                    .getWidth();
+
+            const pdfHeight =
+                (
+                    canvas.height *
+                    pdfWidth
+                ) /
+                canvas.width;
+
+            pdf.addImage(
+                imgData,
+                "PNG",
+                0,
+                0,
+                pdfWidth,
+                pdfHeight
             );
 
-            const link =
-                `${window.location.origin}/document/${id}`;
-
-            setShareLink(link);
-
-            alert("Document shared");
-
-            setShareEmail("");
-
-        } catch (error) {
-
-            console.log(error);
-
-            alert(
-                error.response?.data?.message ||
-                "Failed to share"
-            );
-        }
-    };
+            pdf.save(
+    `${documentTitle || "document"}.pdf`
+);
+        };
 
     return (
         <div className="min-h-screen bg-black text-white">
-
             {/* TOPBAR */}
             <div className="border-b border-zinc-800 px-10 py-5">
-                <div className="flex justify-end mb-4">
+                <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        {onlineUsers.map(
+                            (onlineUser, index) => (
+                                <div
+                                    key={index}
+                                    className="bg-zinc-800 px-4 py-2 rounded-full text-sm border border-zinc-700"
+                                >
+                                    {onlineUser.name}
+                                </div>
+                            )
+                        )}
+                    </div>
 
                     <button
                         onClick={() =>
@@ -298,7 +379,6 @@ function EditorPage() {
                     >
                         Share
                     </button>
-
                 </div>
 
                 <input
@@ -309,18 +389,70 @@ function EditorPage() {
                             e.target.value
                         )
                     }
-                    className="bg-transparent text-3xl font-bold outline-none"
+                    className="bg-transparent text-3xl font-bold outline-none w-full"
                 />
-
             </div>
 
+            {/* MAIN CONTENT */}
+            <div className="px-10 py-5">
+                <div className="flex gap-4 mb-6">
+                    <button
+                        onClick={() =>
+                            setActiveTab(
+                                "document"
+                            )
+                        }
+                        className={`px-4 py-2 rounded-lg ${activeTab === "document"
+                            ? "bg-white text-black"
+                            : "bg-zinc-800"
+                            }`}
+                    >
+                        Document
+                    </button>
 
+                    <button
+                        onClick={() =>
+                            setActiveTab(
+                                "whiteboard"
+                            )
+                        }
+                        className={`px-4 py-2 rounded-lg ${activeTab === "whiteboard"
+                            ? "bg-white text-black"
+                            : "bg-zinc-800"
+                            }`}
+                    >
+                        Whiteboard
+                    </button>
+                </div>
+                <button
+                    onClick={exportPDF}
+                    className="bg-zinc-800 px-4 py-2 rounded-lg"
+                >
+                    Export PDF
+                </button>
 
+                {/* EDITOR */}
+                {activeTab === "document" ? (
+                    <div className="bg-zinc-900 rounded-xl overflow-hidden">
+                        <EditorToolbar editor={editor} />
+
+                        <EditorContent
+                            editor={editor}
+                            className="min-h-[500px] p-5"
+                        />
+                    </div>
+                ) : (
+                    <Whiteboard
+                        workspaceId={id}
+                        role={role}
+                    />
+                )}
+            </div>
+
+            {/* SHARE MODAL */}
             {showShareModal && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-
                     <div className="bg-zinc-900 p-6 rounded-xl w-[400px]">
-
                         <h2 className="text-2xl font-bold mb-5">
                             Share Document
                         </h2>
@@ -357,15 +489,12 @@ function EditorPage() {
 
                         {/* SHAREABLE LINK */}
                         {shareLink && (
-
                             <div className="mb-5">
-
                                 <p className="text-sm text-zinc-400 mb-2">
                                     Shareable Link
                                 </p>
 
                                 <div className="flex gap-2">
-
                                     <input
                                         type="text"
                                         value={shareLink}
@@ -383,19 +512,14 @@ function EditorPage() {
                                     >
                                         Copy
                                     </button>
-
                                 </div>
-
                             </div>
-
                         )}
 
                         <div className="flex justify-end gap-3">
-
                             <button
                                 onClick={() => {
                                     setShowShareModal(false);
-
                                     setShareLink("");
                                 }}
                                 className="px-4 py-2 bg-zinc-700 rounded-lg"
@@ -409,67 +533,9 @@ function EditorPage() {
                             >
                                 Share
                             </button>
-
                         </div>
-
                     </div>
-
                 </div>
-            )}
-
-            <div className="flex gap-4 mb-6">
-
-                <button
-                    onClick={() =>
-                        setActiveTab(
-                            "document"
-                        )
-                    }
-                    className={`px-4 py-2 rounded-lg ${activeTab === "document"
-                        ? "bg-white text-black"
-                        : "bg-zinc-800"
-                        }`}
-                >
-                    Document
-                </button>
-
-                <button
-                    onClick={() =>
-                        setActiveTab(
-                            "whiteboard"
-                        )
-                    }
-                    className={`px-4 py-2 rounded-lg ${activeTab === "whiteboard"
-                        ? "bg-white text-black"
-                        : "bg-zinc-800"
-                        }`}
-                >
-                    Whiteboard
-                </button>
-
-            </div>
-
-            {/* EDITOR */}
-            {activeTab === "document" ? (
-
-                <div className="bg-zinc-900 rounded-xl overflow-hidden">
-
-                    <EditorToolbar editor={editor} />
-
-                    <EditorContent
-                        editor={editor}
-                        className="min-h-[500px] p-5"
-                    />
-
-                </div>
-
-            ) : (
-
-                <Whiteboard
-                    workspaceId={id}
-                    role={role}
-                />
-
             )}
         </div>
     );

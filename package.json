@@ -1,6 +1,8 @@
 {
   "dependencies": {
     "@y/websocket-server": "^0.1.5",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "y-websocket": "^1.5.0"
   }
 }

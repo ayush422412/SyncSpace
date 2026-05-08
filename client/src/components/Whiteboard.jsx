@@ -85,6 +85,25 @@ function Whiteboard({
     );
   };
 
+  const exportBoard = () => {
+
+    const dataURL =
+      fabricRef.current
+        .toDataURL({
+          format: "png",
+        });
+
+    const link =
+      document.createElement("a");
+
+    link.href = dataURL;
+
+    link.download =
+      "whiteboard.png";
+
+    link.click();
+  };
+
   const redo = () => {
     const canvas =
       fabricRef.current;
@@ -349,11 +368,10 @@ function Whiteboard({
             onClick={() =>
               setTool("draw")
             }
-            className={`px-4 py-2 rounded-lg ${
-              tool === "draw"
+            className={`px-4 py-2 rounded-lg ${tool === "draw"
                 ? "bg-white text-black"
                 : "bg-zinc-800 text-white"
-            }`}
+              }`}
           >
             Draw
           </button>
@@ -362,11 +380,10 @@ function Whiteboard({
             onClick={() =>
               setTool("erase")
             }
-            className={`px-4 py-2 rounded-lg ${
-              tool === "erase"
+            className={`px-4 py-2 rounded-lg ${tool === "erase"
                 ? "bg-white text-black"
                 : "bg-zinc-800 text-white"
-            }`}
+              }`}
           >
             Eraser
           </button>
@@ -391,8 +408,15 @@ function Whiteboard({
           >
             Clear
           </button>
+          <button
+            onClick={exportBoard}
+            className="bg-white text-black px-4 py-2 rounded-lg"
+          >
+            Export
+          </button>
 
         </div>
+
 
         <canvas
           ref={canvasRef}

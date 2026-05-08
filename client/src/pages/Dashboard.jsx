@@ -24,6 +24,11 @@ function Dashboard() {
     useState(false);
 
   const [title, setTitle] = useState("");
+  const [search, setSearch] =
+    useState("");
+
+  const [sortBy, setSortBy] =
+    useState("latest");
 
   const getDocuments = async () => {
     try {
@@ -62,13 +67,75 @@ function Dashboard() {
 
     navigate("/login");
   };
+  const filteredDocuments =
+    [...documents]
+      .filter((doc) =>
+        doc.title
+          .toLowerCase()
+          .includes(
+            search.toLowerCase()
+          )
+      )
+      .sort((a, b) => {
+
+        if (sortBy === "latest") {
+          return (
+            new Date(
+              b.updatedAt
+            ) -
+            new Date(
+              a.updatedAt
+            )
+          );
+        }
+
+        if (sortBy === "oldest") {
+          return (
+            new Date(
+              a.updatedAt
+            ) -
+            new Date(
+              b.updatedAt
+            )
+          );
+        }
+
+        return a.title.localeCompare(
+          b.title
+        );
+      });
+
+      const recentDocuments =
+  [...documents]
+    .sort(
+      (a, b) =>
+        new Date(
+          b.updatedAt
+        ) -
+        new Date(
+          a.updatedAt
+        )
+    )
+    .slice(0, 3);
+
+const totalCollaborators =
+  documents.reduce(
+    (acc, doc) =>
+      acc +
+      (
+        doc.collaborators
+          ?.length || 0
+      ),
+    0
+  );
 
   return (
     <div className="min-h-screen bg-black text-white p-10">
-      
+
       {/* HEADER */}
+      
       <div className="flex justify-between items-center mb-10">
-        
+
         <div>
           <h1 className="text-4xl font-bold">
             Welcome {user?.name}
@@ -79,8 +146,47 @@ function Dashboard() {
           </p>
         </div>
 
+        <div className="flex gap-4 items-center">
+
+          <input
+            type="text"
+            placeholder="Search workspaces..."
+            value={search}
+            onChange={(e) =>
+              setSearch(
+                e.target.value
+              )
+            }
+            className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 outline-none w-[260px]"
+          />
+
+          <select
+            value={sortBy}
+            onChange={(e) =>
+              setSortBy(
+                e.target.value
+              )
+            }
+            className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 outline-none"
+          >
+            <option value="latest">
+              Latest
+            </option>
+
+            <option value="oldest">
+              Oldest
+            </option>
+
+            <option value="az">
+              A-Z
+            </option>
+
+          </select>
+
+        </div>
+
         <div className="flex gap-4">
-          
+
           <button
             onClick={() => setShowModal(true)}
             className="bg-white text-black px-5 py-3 rounded-lg font-semibold"
@@ -98,10 +204,11 @@ function Dashboard() {
         </div>
       </div>
 
-      
+
       {/* DOCUMENTS */}
       <div className="grid md:grid-cols-3 gap-5">
-        {documents.map((document) => (
+        {filteredDocuments.map(
+  (document) => (
           <DocumentCard
             key={document._id}
             document={document}
@@ -113,9 +220,9 @@ function Dashboard() {
       {/* MODAL */}
       {showModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center">
-          
+
           <div className="bg-zinc-900 p-6 rounded-2xl w-full max-w-md">
-            
+
             <h2 className="text-2xl font-bold mb-5">
               Create New Document
             </h2>
@@ -131,7 +238,7 @@ function Dashboard() {
             />
 
             <div className="flex justify-end gap-3">
-              
+
               <button
                 onClick={() => setShowModal(false)}
                 className="px-5 py-2 bg-zinc-700 rounded-lg"
